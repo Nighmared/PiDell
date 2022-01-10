@@ -1,10 +1,13 @@
 import configparser
 from datetime import datetime as dt
 from datetime import timedelta
+from enum import Enum
 from os import path, system
 
 from telegram import Update
 from telegram.ext import CallbackContext, CommandHandler, Updater
+
+import deluge_module as dm
 
 dir = path.dirname(__file__)
 
@@ -26,6 +29,27 @@ is_up = system(f"ping -c 1 {access_cfg['server_address']} > /dev/null") == 0
 up_since = dt.now() if is_up else None
 
 
+class Permissions(Enum):
+    OWNER = 2
+    ADMIN = 1
+
+
+def hasPermission(uid: int, lvl) -> bool:
+    if lvl == Permissions.OWNER:
+        return uid == owner_id
+    if lvl == Permissions.ADMIN:
+        return uid in admin_ids or uid == owner_id
+    return True
+
+
+torrent = dm.DelugeClient(
+    host=config.get("DELUGE", "host"),
+    port=config.getint("DELUGE", "port"),
+    username=config.get("DELUGE", "username"),
+    password=config.get("DELUGE", "password"),
+)
+
+
 def reload_admins():
     global admin_ids
     admin_ids = list(map(int, config.get("TELEGRAM", "admins").split(",")))
@@ -33,20 +57,13 @@ def reload_admins():
         admin_ids.append(owner_id)
 
 
-def echo(update: Update, context: CallbackContext) -> None:
-    update.message.reply_text(update.message.text)
-
-
 def start(update: Update, context: CallbackContext) -> None:
     global is_up
     global up_since
-    if update.message.from_user.id not in admin_ids:
-        # Not authorized
-        print(
-            f"[{dt.now()}] User {update.message.from_user.name} tried to use admin-only command"
-        )
+    if not hasPermission(update.message.from_user.id, Permissions.ADMIN):
         update.message.reply_text("🔒 Not authorized")
         return
+
     print(f"[{dt.now()}] received start command")
     ret = system(
         f"sshpass -p '{access_cfg['password']}' ssh {access_cfg['username']}@{access_cfg['idrac_address']} racadm serveraction powerup"
@@ -61,13 +78,11 @@ def start(update: Update, context: CallbackContext) -> None:
 
 def stop(update: Update, context: CallbackContext) -> None:
     global is_up
-    if update.message.from_user.id not in admin_ids:
-        # Not authorized
-        print(
-            f"[{dt.now()}] User {update.message.from_user.name} tried to use admin-only command"
-        )
+
+    if not hasPermission(update.message.from_user.id, Permissions.ADMIN):
         update.message.reply_text("🔒 Not authorized")
         return
+
     print(f"[{dt.now()}] received stop command")
     ret = system(
         f"sshpass -p '{access_cfg['password']}' ssh {access_cfg['username']}@{access_cfg['idrac_address']} racadm serveraction powerdown"
@@ -80,10 +95,7 @@ def stop(update: Update, context: CallbackContext) -> None:
 
 
 def addadmin(update: Update, context: CallbackContext) -> None:
-    if update.message.from_user.id != owner_id:
-        print(
-            f"[{dt.now()}] User {update.message.from_user.name} tried to use owner-only command"
-        )
+    if not hasPermission(update.message.from_user.id, Permissions.OWNER):
         update.message.reply_text("🔒 Not authorized")
         return
     current_admins = admin_ids[::]
@@ -107,10 +119,7 @@ def addadmin(update: Update, context: CallbackContext) -> None:
 
 
 def deladmin(update: Update, context: CallbackContext) -> None:
-    if update.message.from_user.id != owner_id:
-        print(
-            f"[{dt.now()}] User {update.message.from_user.name} tried to use owner-only command"
-        )
+    if not hasPermission(update.message.from_user.id, Permissions.OWNER):
         update.message.reply_text("🔒 Not authorized")
         return
     current_admins = admin_ids[::]  # remove duplicates ....
@@ -160,6 +169,61 @@ def debug(update, context):
     print(update.message)
 
 
+def get_torrents(update: Update, context: CallbackContext) -> None:
+
+    if not hasPermission(update.message.from_user.id, Permissions.ADMIN):
+        update.message.reply_text("🔒 Not authorized")
+        return
+
+    if not is_up:
+        update.message.reply_text("Server not up")
+        return
+
+    res, err = torrent.get_torrents()
+    if err:
+        update.message.reply_text("Failed to get torrents: " + str(err))
+        return
+
+    update.message.reply_text(res)
+
+
+def addmovie(update: Update, context: CallbackContext) -> None:
+    if not hasPermission(update.message.from_user.id, Permissions.OWNER):
+        update.message.reply_text("🔒 Not authorized")
+        return
+
+    if not is_up:
+        update.message.reply_text("Server not up")
+        return
+
+    link = context.args[0]
+    res = add_torrent(link, "/Movies")
+    update.message.reply_text(res)
+
+
+def add_torrent(link: str, path: str) -> None:
+    completepath = config.get("DELUGE", "base_location") + path
+    res, err = torrent.add_torrent(link, completepath)
+    if err:
+        return "failed to add torrent: " + str(err)
+    return res
+
+
+def pause_all(update: Update, context: CallbackContext):
+    if not hasPermission(update.message.from_user.id, Permissions.OWNER):
+        update.message.reply_text("🔒 Not authorized")
+        return
+
+    if not is_up:
+        update.message.reply_text("Server not up")
+        return
+
+    res, err = torrent.pause_all()
+    if err:
+        update.message.reply_text("Failed to pause: " + str(err))
+    update.message.reply_text("Paused all torrents")
+
+
 def uptime(update: Update, context: CallbackContext) -> None:
     if is_up:
         update.message.reply_text(
@@ -174,7 +238,7 @@ def uptime(update: Update, context: CallbackContext) -> None:
 
 
 def errorh(update: Update, context: CallbackContext) -> None:
-    print(update.message)
+    # print(update.message)
     print(context.error)
 
 
@@ -185,6 +249,8 @@ updater.dispatcher.add_handler(CommandHandler("uptime", uptime))
 updater.dispatcher.add_handler(CommandHandler("addadmin", addadmin))
 updater.dispatcher.add_handler(CommandHandler("deladmin", deladmin))
 updater.dispatcher.add_handler(CommandHandler("whatsmyid", whatsmyid))
+updater.dispatcher.add_handler(CommandHandler("gettorrents", get_torrents))
+updater.dispatcher.add_handler(CommandHandler("addmovie", addmovie))
 updater.dispatcher.add_error_handler(errorh)
 
 print("Bot up!")
