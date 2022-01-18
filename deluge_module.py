@@ -48,7 +48,7 @@ class DelugeClient:
             torrent_objs.append(Torrent(t, torrents[t]))
         return "\n".join(map(str, torrent_objs)), None
 
-    def add_torrent(self, link, location):
+    def add_torrent(self, link: str, location: str):
         if not self.client.connected:
             _, err = self.connect()
             if err:

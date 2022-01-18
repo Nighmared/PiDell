@@ -5,6 +5,7 @@ from datetime import timedelta
 from enum import Enum
 from os import path, system
 from time import sleep
+from typing import Callable
 from urllib.error import HTTPError
 
 from telegram import Update
@@ -52,7 +53,7 @@ class Permissions(Enum):
     DEFAULT = 0
 
 
-def hasPermission(uid: int, lvl) -> bool:
+def hasPermission(uid: int, lvl: Permissions) -> bool:
     if lvl == Permissions.OWNER:
         return uid == owner_id
     if lvl == Permissions.ADMIN:
@@ -60,16 +61,16 @@ def hasPermission(uid: int, lvl) -> bool:
     return True
 
 
-def reload_admins():
+def reload_admins() -> None:
     global admin_ids
     admin_ids = list(map(int, config.get("TELEGRAM", "admins").split(",")))
     if owner_id not in admin_ids:
         admin_ids.append(owner_id)
 
 
-def command(role=Permissions.DEFAULT):
-    def wrap2(func):
-        def wrap(update: Update, ctxt: CallbackContext):
+def command(role: Permissions = Permissions.DEFAULT):
+    def wrap2(func: Callable[[Update, CallbackContext], None]):
+        def wrap(update: Update, ctxt: CallbackContext) -> None:
             logger.info(f"received {func.__name__} command")
             if not hasPermission(update.message.from_user.id, role):
                 update.message.reply_text("🔒 Not authorized")

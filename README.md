@@ -9,6 +9,7 @@ This is a python program to issue basic power commands to a Dell Poweredge Serve
 ## Requirements
 
 - python-telegram-bot (install via `pip install -r requirements.txt`)
+- deluge_client (install via `pip install -r requirements.txt`)
 - `sshpass` (install via package manager)
 - Python >3.6 (f-strings)
 
@@ -26,10 +27,13 @@ run the bot with `python control.py`
 
 The bot only provides a few commands as of now, the naming of which should explain enough about what they do:
 
-| Everyone   | Admins | Owner     |
-| ---------- | ------ | --------- |
-| /uptime    | /start | /addadmin |
-| /whatsmyid | /stop  | /deladmin |
+| Everyone   | Admins       | Owner      |
+| ---------- | ------------ | ---------- |
+| /uptime    | /start       | /addadmin  |
+| /whatsmyid | /stop        | /deladmin  |
+|            | /ping        | /addmovie  |
+|            | /gettorrents | /getadmins |
+|            |              |            |
 
 
 
