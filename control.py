@@ -1,13 +1,20 @@
 import configparser
+import logging
 from datetime import datetime as dt
 from datetime import timedelta
 from enum import Enum
 from os import path, system
+from time import sleep
+from urllib.error import HTTPError
 
 from telegram import Update
 from telegram.ext import CallbackContext, CommandHandler, Updater
 
 import deluge_module as dm
+import log
+
+log.get_ready()
+logger = logging.getLogger(log.LOGGERNAME)
 
 dir = path.dirname(__file__)
 
@@ -28,10 +35,21 @@ bot_start_time = dt.now()
 is_up = system(f"ping -c 1 {access_cfg['server_address']} > /dev/null") == 0
 up_since = dt.now() if is_up else None
 
+updater = Updater(token=token)
+
+torrent = dm.DelugeClient(
+    host=config.get("DELUGE", "host"),
+    port=config.getint("DELUGE", "port"),
+    username=config.get("DELUGE", "username"),
+    password=config.get("DELUGE", "password"),
+    ratio=config.get("DELUGE", "stop_ratio"),
+)
+
 
 class Permissions(Enum):
     OWNER = 2
     ADMIN = 1
+    DEFAULT = 0
 
 
 def hasPermission(uid: int, lvl) -> bool:
@@ -42,14 +60,6 @@ def hasPermission(uid: int, lvl) -> bool:
     return True
 
 
-torrent = dm.DelugeClient(
-    host=config.get("DELUGE", "host"),
-    port=config.getint("DELUGE", "port"),
-    username=config.get("DELUGE", "username"),
-    password=config.get("DELUGE", "password"),
-)
-
-
 def reload_admins():
     global admin_ids
     admin_ids = list(map(int, config.get("TELEGRAM", "admins").split(",")))
@@ -57,14 +67,26 @@ def reload_admins():
         admin_ids.append(owner_id)
 
 
+def command(role=Permissions.DEFAULT):
+    def wrap2(func):
+        def wrap(update: Update, ctxt: CallbackContext):
+            logger.info(f"received {func.__name__} command")
+            if not hasPermission(update.message.from_user.id, role):
+                update.message.reply_text("🔒 Not authorized")
+                return
+            func(update, ctxt)
+
+        updater.dispatcher.add_handler(CommandHandler(func.__name__, wrap))
+        return wrap
+
+    return wrap2
+
+
+@command(Permissions.ADMIN)
 def start(update: Update, context: CallbackContext) -> None:
     global is_up
     global up_since
-    if not hasPermission(update.message.from_user.id, Permissions.ADMIN):
-        update.message.reply_text("🔒 Not authorized")
-        return
 
-    print(f"[{dt.now()}] received start command")
     ret = system(
         f"sshpass -p '{access_cfg['password']}' ssh {access_cfg['username']}@{access_cfg['idrac_address']} racadm serveraction powerup"
     )
@@ -76,12 +98,9 @@ def start(update: Update, context: CallbackContext) -> None:
         update.message.reply_text("✅ issued poweron command")
 
 
+@command(Permissions.ADMIN)
 def stop(update: Update, context: CallbackContext) -> None:
     global is_up
-
-    if not hasPermission(update.message.from_user.id, Permissions.ADMIN):
-        update.message.reply_text("🔒 Not authorized")
-        return
 
     print(f"[{dt.now()}] received stop command")
     ret = system(
@@ -94,10 +113,8 @@ def stop(update: Update, context: CallbackContext) -> None:
         update.message.reply_text("✅ issued powerdown command")
 
 
+@command(Permissions.OWNER)
 def addadmin(update: Update, context: CallbackContext) -> None:
-    if not hasPermission(update.message.from_user.id, Permissions.OWNER):
-        update.message.reply_text("🔒 Not authorized")
-        return
     current_admins = admin_ids[::]
     try:
         to_add_id = int(update.message.text[9:].strip().split(" ")[0])
@@ -118,10 +135,15 @@ def addadmin(update: Update, context: CallbackContext) -> None:
     )
 
 
+@command(Permissions.ADMIN)
+def getadmins(update: Update, context: CallbackContext) -> None:
+    update.message.reply_text(
+        f"ℹ️ The following uids are currently admins: {', '.join(map(str,admin_ids))}"
+    )
+
+
+@command(Permissions.OWNER)
 def deladmin(update: Update, context: CallbackContext) -> None:
-    if not hasPermission(update.message.from_user.id, Permissions.OWNER):
-        update.message.reply_text("🔒 Not authorized")
-        return
     current_admins = admin_ids[::]  # remove duplicates ....
     try:
         to_del_id = int(update.message.text[9:].strip().split(" ")[0])
@@ -144,18 +166,22 @@ def deladmin(update: Update, context: CallbackContext) -> None:
     )
 
 
+@command()
 def whatsmyid(update: Update, context: CallbackContext) -> None:
     update.message.reply_text("ℹ️ Your id is: " + str(update.message.from_user.id))
 
 
 def timedelta_to_nice_time(delta: timedelta) -> str:
     seconds = delta.seconds
+    d = delta.days
     h = seconds // 3600
     seconds %= 3600
     m = seconds // 60
     seconds %= 60
     s = seconds
     timestring = ""
+    if d > 0:
+        timestring += f"{d}d "
     if h > 0:
         timestring += f"{h}h "
     if m > 0:
@@ -165,16 +191,8 @@ def timedelta_to_nice_time(delta: timedelta) -> str:
     return timestring
 
 
-def debug(update, context):
-    print(update.message)
-
-
-def get_torrents(update: Update, context: CallbackContext) -> None:
-
-    if not hasPermission(update.message.from_user.id, Permissions.ADMIN):
-        update.message.reply_text("🔒 Not authorized")
-        return
-
+@command(Permissions.ADMIN)
+def gettorrents(update: Update, context: CallbackContext) -> None:
     if not is_up:
         update.message.reply_text("Server not up")
         return
@@ -187,11 +205,8 @@ def get_torrents(update: Update, context: CallbackContext) -> None:
     update.message.reply_text(res)
 
 
+@command(Permissions.OWNER)
 def addmovie(update: Update, context: CallbackContext) -> None:
-    if not hasPermission(update.message.from_user.id, Permissions.OWNER):
-        update.message.reply_text("🔒 Not authorized")
-        return
-
     if not is_up:
         update.message.reply_text("Server not up")
         return
@@ -209,7 +224,8 @@ def add_torrent(link: str, path: str) -> None:
     return res
 
 
-def pause_all(update: Update, context: CallbackContext):
+# @command
+def pauseall(update: Update, context: CallbackContext):
     if not hasPermission(update.message.from_user.id, Permissions.OWNER):
         update.message.reply_text("🔒 Not authorized")
         return
@@ -218,12 +234,42 @@ def pause_all(update: Update, context: CallbackContext):
         update.message.reply_text("Server not up")
         return
 
-    res, err = torrent.pause_all()
+    _, err = torrent.pause_all()
     if err:
+        print(err)
         update.message.reply_text("Failed to pause: " + str(err))
+        return
     update.message.reply_text("Paused all torrents")
 
 
+@command(Permissions.ADMIN)
+def ping(update: Update, context: CallbackContext) -> None:
+    PINGRESPONSEEMOTE = "ℹ️"
+    global is_up, up_since
+    was = is_up
+    is_up = system(f"ping -c 1 {access_cfg['server_address']} > /dev/null") == 0
+    if is_up != was:
+        if is_up:
+            up_since = dt.now()
+            update.message.reply_text(
+                PINGRESPONSEEMOTE + "\nExpected: Offline\nActual:  Online\n🤭"
+            )
+        else:
+            update.message.reply_text(
+                PINGRESPONSEEMOTE + "\nExpected: Online\nActual:  Offline\n🤭"
+            )
+    else:
+        if is_up:
+            update.message.reply_text(
+                PINGRESPONSEEMOTE + "\nExpected: Online\nActual:  Online\n💁"
+            )
+        else:
+            update.message.reply_text(
+                PINGRESPONSEEMOTE + "\nExpected: Offline\nActual:  Offline\n💁"
+            )
+
+
+@command()
 def uptime(update: Update, context: CallbackContext) -> None:
     if is_up:
         update.message.reply_text(
@@ -234,25 +280,20 @@ def uptime(update: Update, context: CallbackContext) -> None:
         )
 
     else:
-        update.message.reply_text("😴 Server not online")
+        update.message.reply_text(
+            "😴 Server not online (if you think it actually is online, use /ping to have me check the status again)"
+            + "\n🤖 Bot has been running for: "
+            + timedelta_to_nice_time(dt.now() - bot_start_time)
+        )
 
 
 def errorh(update: Update, context: CallbackContext) -> None:
-    # print(update.message)
-    print(context.error)
+    logger.fatal(context.error)
+    if isinstance(context.error, HTTPError):
+        sleep(60)  # give it some time
 
 
-updater = Updater(token=token)
-updater.dispatcher.add_handler(CommandHandler("start", start))
-updater.dispatcher.add_handler(CommandHandler("stop", stop))
-updater.dispatcher.add_handler(CommandHandler("uptime", uptime))
-updater.dispatcher.add_handler(CommandHandler("addadmin", addadmin))
-updater.dispatcher.add_handler(CommandHandler("deladmin", deladmin))
-updater.dispatcher.add_handler(CommandHandler("whatsmyid", whatsmyid))
-updater.dispatcher.add_handler(CommandHandler("gettorrents", get_torrents))
-updater.dispatcher.add_handler(CommandHandler("addmovie", addmovie))
 updater.dispatcher.add_error_handler(errorh)
-
 print("Bot up!")
 updater.start_polling()
 updater.idle()

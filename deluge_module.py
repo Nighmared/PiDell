@@ -2,13 +2,15 @@ from deluge_client import DelugeRPCClient
 
 
 class DelugeClient:
-    def __init__(self, host: str, port: str, username: str, password: str):
+    def __init__(
+        self, host: str, port: str, username: str, password: str, ratio: float
+    ):
         self.client = DelugeRPCClient(
             host=host, port=port, username=username, password=password
         )
+        self.ratio = ratio
 
     def connect(self):
-        print("in connect")
         try:
             self.client.connect()
             return "connected", None
@@ -57,7 +59,7 @@ class DelugeClient:
                 link,
                 {
                     "stop_at_ratio": True,
-                    "stop_ratio": 2.0,
+                    "stop_ratio": self.ratio,
                     "download_location": location,
                 },
             )
@@ -66,16 +68,16 @@ class DelugeClient:
             return None, e
 
     def pause_all(self):
-        if not self.connected:
+        if not self.client.connected:
             _, err = self.connect()
             if err:
                 return None, err
 
         try:
-            self.client.core.pause_all_torrents()
+            self.client.core.pause_torrents()
             return "Successfully paused all torrents", None
         except Exception as e:
-            return None, e
+            return "failed", e
 
 
 class Torrent:
