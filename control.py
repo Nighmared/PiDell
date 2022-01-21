@@ -9,7 +9,7 @@ from time import sleep
 from tkinter import W
 from typing import Callable
 
-from telegram import Update
+from telegram import Update, callbackquery
 from telegram.ext import CallbackContext, CommandHandler, Updater
 from urllib3.exceptions import HTTPError
 
@@ -17,6 +17,9 @@ import dbhandler
 import dbsetup
 import deluge_module as dm
 import log
+
+__author__ = "nighmared"
+__version__ = "1.1"
 
 log.get_ready()
 logger = logging.getLogger(log.LOGGERNAME)
@@ -232,12 +235,22 @@ def gettorrents(update: Update, context: CallbackContext) -> None:
 
 @command(Permissions.OWNER)
 def addmovie(update: Update, context: CallbackContext) -> None:
+    new_torrent(update, context, "Movies")
+
+
+@command(Permissions.OWNER)
+def addmcu(update: Update, context: CallbackContext) -> None:
+    new_torrent(update, context, "MCU")
+
+
+# this is not a command. it also shouldn't be
+def new_torrent(update: Update, context: CallbackContext, folder: str) -> None:
     if not is_up:
         update.message.reply_text("Server not up")
         return
 
     link = context.args[0]
-    res = add_torrent(link, "/Movies")
+    res = add_torrent(link, f"/{folder}")
     update.message.reply_text(res)
 
 
@@ -249,7 +262,7 @@ def add_torrent(link: str, path: str) -> None:
     return res
 
 
-# @command
+# @command doesnt work
 def pauseall(update: Update, context: CallbackContext):
     if not hasPermission(update.message.from_user.id, Permissions.OWNER):
         update.message.reply_text("🔒 Not authorized")
