@@ -1,4 +1,5 @@
 import logging
+import sys
 from os import path
 
 DEFAULT = "\033[0m"
@@ -22,13 +23,13 @@ def get_ready():
     for h in logger.handlers:
         logger.removeHandler(h)
 
-    fhandler = logging.FileHandler(f"{path.join(dir,LOGGERNAME)}.log", mode="a")
+    outhandler = logging.StreamHandler(sys.stdout)
     formatter = LogFormatter(
         fmt="%(asctime)s [%(levelname)s][%(filename)s] %(message)s",
         datefmt="%Y/%m/%d %H:%M:%S",
     )
-    fhandler.setFormatter(formatter)
-    logger.addHandler(fhandler)
+    outhandler.setFormatter(formatter)
+    logger.addHandler(outhandler)
     logger.setLevel(logging.INFO)
 
 

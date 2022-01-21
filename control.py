@@ -1,16 +1,20 @@
-import configparser
 import logging
 from datetime import datetime as dt
 from datetime import timedelta
 from enum import Enum
+from os import environ as env
 from os import path, system
+from telnetlib import SB
 from time import sleep
+from tkinter import W
 from typing import Callable
-from urllib.error import HTTPError
 
 from telegram import Update
 from telegram.ext import CallbackContext, CommandHandler, Updater
+from urllib3.exceptions import HTTPError
 
+import dbhandler
+import dbsetup
 import deluge_module as dm
 import log
 
@@ -19,31 +23,57 @@ logger = logging.getLogger(log.LOGGERNAME)
 
 dir = path.dirname(__file__)
 
-cfg_path = path.join(dir, "settings.ini")
+access_cfg = {
+    "username": env.get("SERVER_USERNAME"),
+    "password": env.get("SERVER_PASSWORD"),
+    "idrac_address": env.get("MANAGE_IP"),
+    "server_address": env.get("SERVER_IP"),
+}
 
-config = configparser.ConfigParser()
-config.read(cfg_path)
-access_cfg = config["ACCESS"]
+telegram_cfg = {
+    "owner": int(env.get("TELEGRAM_OWNER_ID")),
+    "token": env.get("TELEGRAM_BOT_TOKEN"),
+    "dbpath": env.get("DBPATH"),
+}
+
+deluge_cfg = {
+    "host": env.get("DELUGE_HOST"),
+    "port": int(env.get("DELUGE_PORT")),
+    "username": env.get("DELUGE_USERNAME"),
+    "password": env.get("DELUGE_PASSWORD"),
+    "base_dir": env.get("DELUGE_BASE_DIR"),
+    "stop_ratio": env.get("DELUGE_STOP_RATIO"),
+}
 
 
-token = config.get("TELEGRAM", "token")
-owner_id = int(config.get("TELEGRAM", "owner"))
-admin_ids = list(map(int, config.get("TELEGRAM", "admins").split(",")))
-if owner_id not in admin_ids:
-    admin_ids.append(owner_id)
+owner_id = telegram_cfg["owner"]
+admin_ids = [
+    owner_id,
+]
+
+
+created_new = dbsetup.setup(telegram_cfg["dbpath"])  # ensures table exists
+db = dbhandler.Dbhandler(telegram_cfg["dbpath"])
+if created_new:
+    db.add_admin(owner_id)
+
+for admin in db.get_admins():
+    if admin not in admin_ids:
+        admin_ids.append(admin)
+
 
 bot_start_time = dt.now()
 is_up = system(f"ping -c 1 {access_cfg['server_address']} > /dev/null") == 0
 up_since = dt.now() if is_up else None
 
-updater = Updater(token=token)
+updater = Updater(token=telegram_cfg["token"])
 
 torrent = dm.DelugeClient(
-    host=config.get("DELUGE", "host"),
-    port=config.getint("DELUGE", "port"),
-    username=config.get("DELUGE", "username"),
-    password=config.get("DELUGE", "password"),
-    ratio=config.get("DELUGE", "stop_ratio"),
+    host=deluge_cfg["host"],
+    port=deluge_cfg["port"],
+    username=deluge_cfg["username"],
+    password=deluge_cfg["password"],
+    ratio=deluge_cfg["stop_ratio"],
 )
 
 
@@ -63,7 +93,7 @@ def hasPermission(uid: int, lvl: Permissions) -> bool:
 
 def reload_admins() -> None:
     global admin_ids
-    admin_ids = list(map(int, config.get("TELEGRAM", "admins").split(",")))
+    admin_ids = list(db.get_admins())
     if owner_id not in admin_ids:
         admin_ids.append(owner_id)
 
@@ -116,20 +146,18 @@ def stop(update: Update, context: CallbackContext) -> None:
 
 @command(Permissions.OWNER)
 def addadmin(update: Update, context: CallbackContext) -> None:
-    current_admins = admin_ids[::]
+    reload_admins()
     try:
         to_add_id = int(update.message.text[9:].strip().split(" ")[0])
     except:
         to_add_id = -1
-    if to_add_id in current_admins or to_add_id < 0:
-        update.message.reply_text("🤷 Either no user id given or user is already admin")
+    if to_add_id in admin_ids or to_add_id < 0:
+        update.message.reply_text(
+            "🤷 Either no/invalid user id given or user is already admin"
+        )
         return
 
-    current_admins.append(to_add_id)
-    output_admins = ",".join(map(str, current_admins))
-    config.set("TELEGRAM", "admins", output_admins)
-    with open(cfg_path, "w") as cfg_file:
-        config.write(cfg_file)
+    db.add_admin(to_add_id)
     reload_admins()
     update.message.reply_text(
         f"✅ the following uids are currently admins: {str(admin_ids)}"
@@ -138,6 +166,7 @@ def addadmin(update: Update, context: CallbackContext) -> None:
 
 @command(Permissions.ADMIN)
 def getadmins(update: Update, context: CallbackContext) -> None:
+    reload_admins()
     update.message.reply_text(
         f"ℹ️ The following uids are currently admins: {', '.join(map(str,admin_ids))}"
     )
@@ -145,22 +174,17 @@ def getadmins(update: Update, context: CallbackContext) -> None:
 
 @command(Permissions.OWNER)
 def deladmin(update: Update, context: CallbackContext) -> None:
-    current_admins = admin_ids[::]  # remove duplicates ....
+    reload_admins()
     try:
         to_del_id = int(update.message.text[9:].strip().split(" ")[0])
     except:
         print(update.message.text[9:].strip().split(" "))
         to_del_id = -1
-    if to_del_id not in current_admins or to_del_id < 0:
-        print(to_del_id, current_admins)
+    if to_del_id not in admin_ids or to_del_id < 0:
         update.message.reply_text("🤷 Either no user id given or user isn't admin")
         return
 
-    current_admins.remove(to_del_id)
-    output_admins = ",".join(map(str, current_admins))
-    config.set("TELEGRAM", "admins", output_admins)
-    with open(cfg_path, "w") as cfg_file:
-        config.write(cfg_file)
+    db.del_admin(to_del_id)
     reload_admins()
     update.message.reply_text(
         f"✅ the following uids are currently admins: {str(admin_ids)}"
@@ -218,7 +242,7 @@ def addmovie(update: Update, context: CallbackContext) -> None:
 
 
 def add_torrent(link: str, path: str) -> None:
-    completepath = config.get("DELUGE", "base_location") + path
+    completepath = deluge_cfg["base_dir"] + path
     res, err = torrent.add_torrent(link, completepath)
     if err:
         return "failed to add torrent: " + str(err)

@@ -1,0 +1,12 @@
+version: "3.9"
+services:
+  pidell:
+    container_name: pidell
+    build: .
+    env_file:
+      - settings.env
+    volumes:
+      - pidell_db:/app/data
+
+volumes:
+  pidell_db:

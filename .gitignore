@@ -1,2 +1,5 @@
 settings.ini
 __pycache__
+*.env
+!settings.default.env
+*.log
