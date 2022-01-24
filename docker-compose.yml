@@ -3,6 +3,7 @@ services:
   pidell:
     container_name: pidell
     build: .
+    restart: always
     env_file:
       - settings.env
     volumes:

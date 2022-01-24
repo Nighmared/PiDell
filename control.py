@@ -4,12 +4,10 @@ from datetime import timedelta
 from enum import Enum
 from os import environ as env
 from os import path, system
-from telnetlib import SB
 from time import sleep
-from tkinter import W
 from typing import Callable
 
-from telegram import Update, callbackquery
+from telegram import Update
 from telegram.ext import CallbackContext, CommandHandler, Updater
 from urllib3.exceptions import HTTPError
 
@@ -125,7 +123,7 @@ def start(update: Update, context: CallbackContext) -> None:
         f"sshpass -p '{access_cfg['password']}' ssh {access_cfg['username']}@{access_cfg['idrac_address']} racadm serveraction powerup"
     )
     if ret != 0:
-        update.message.reply_text("❌ failed to start, got error code " + ret)
+        update.message.reply_text("❌ failed to start, got error code " + str(ret))
     else:
         is_up = True
         up_since = dt.now()
