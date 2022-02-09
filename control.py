@@ -52,7 +52,6 @@ admin_ids = [
     owner_id,
 ]
 
-
 created_new = dbsetup.setup(telegram_cfg["dbpath"])  # ensures table exists
 db = dbhandler.Dbhandler(telegram_cfg["dbpath"])
 if created_new:
@@ -114,6 +113,11 @@ def command(role: Permissions = Permissions.DEFAULT):
     return wrap2
 
 
+def get_to_know_host(ip):
+    ret = system(f"ssh-keyscan -t ecdsa {ip} >> /root/.ssh/known_hosts")
+    return ret
+
+
 @command(Permissions.ADMIN)
 def start(update: Update, context: CallbackContext) -> None:
     global is_up
@@ -122,6 +126,17 @@ def start(update: Update, context: CallbackContext) -> None:
     ret = system(
         f"sshpass -p '{access_cfg['password']}' ssh {access_cfg['username']}@{access_cfg['idrac_address']} racadm serveraction powerup"
     )
+    if ret == 1536:
+        res = get_to_know_host(access_cfg["idrac_address"])
+        if res == 0:
+            update.message.reply_text(
+                "❗ failed to start but successfully added key to known_hosts file, please try again now"
+            )
+        else:
+            update.message.reply_text(
+                "❌ failed to shutdown,failed to add key to known hosts,\n got error: "
+                + str(res)
+            )
     if ret != 0:
         update.message.reply_text("❌ failed to start, got error code " + str(ret))
     else:
@@ -138,7 +153,18 @@ def stop(update: Update, context: CallbackContext) -> None:
     ret = system(
         f"sshpass -p '{access_cfg['password']}' ssh {access_cfg['username']}@{access_cfg['idrac_address']} racadm serveraction powerdown"
     )
-    if ret != 0:
+    if ret == 1536:
+        res = get_to_know_host(access_cfg["idrac_address"])
+        if res == 0:
+            update.message.reply_text(
+                "❗ failed to start but successfully added key to known_hosts file, please try again now"
+            )
+        else:
+            update.message.reply_text(
+                "❌ failed to shutdown,failed to add key to known hosts,\n got error: "
+                + str(res)
+            )
+    elif ret != 0:
         update.message.reply_text("❌ failed to shutdown, got error code " + str(ret))
     else:
         is_up = False
