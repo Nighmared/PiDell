@@ -8,18 +8,20 @@ This is a python program to issue basic power commands to a Dell Poweredge Serve
 
 ## Requirements
 
-- python-telegram-bot (install via `pip install -r requirements.txt`)
-- deluge_client (install via `pip install -r requirements.txt`)
-- `sshpass` (install via package manager)
-- Python >3.6 (f-strings)
-
-
+- Docker
+- docker-compose
 
 ## Getting started
 
-Create a `settings.ini` file that defines the parameters given in `settings.ini.default`
+Create a `settings.env` file that defines the parameters given in `settings.default.env`
+- MANAGE_IP is the ip of the idrac interface
+- SERVER_USERNAME/SERVER_PASSWORD have to be credentials for the idrac interface
+- SERVER_IP is the ip of the OS when the server is up
+- TELEGRAM_OWNER_ID is the telegram User ID of the owner account
+- DELUGE_USERNAME/ DELUGE_PASSWORD are credentials for a deluge account as described [here](https://dev.deluge-torrent.org/wiki/UserGuide/Authentication)
 
-run the bot with `python control.py`
+
+run the bot with `docker-compose up --build -d`
 
 
 
@@ -31,9 +33,9 @@ The bot only provides a few commands as of now, the naming of which should expla
 | ---------- | ------------ | ---------- |
 | /uptime    | /start       | /addadmin  |
 | /whatsmyid | /stop        | /deladmin  |
-|            | /ping        | /addmovie  |
-|            | /gettorrents | /getadmins |
-|            |              |            |
+|            | /ping        | /getadmins |
+|            | /gettorrents | /addmovie  |
+|            |              | /addseries |
 
 
 
