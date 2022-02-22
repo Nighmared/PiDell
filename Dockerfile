@@ -5,4 +5,5 @@ RUN pip install -r requirements.txt
 COPY *.py ./
 RUN apt-get update
 RUN apt-get install iputils-ping sshpass -y
+RUN mkdir /root/.ssh
 CMD ["python3", "control.py"]

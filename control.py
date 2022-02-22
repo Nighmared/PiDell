@@ -114,6 +114,7 @@ def command(role: Permissions = Permissions.DEFAULT):
 
 
 def get_to_know_host(ip):
+    logger.warn("Failed to start/stop, trying to add to known_hosts file")
     ret = system(f"ssh-keyscan -t ecdsa {ip} >> /root/.ssh/known_hosts")
     return ret
 
@@ -149,7 +150,6 @@ def start(update: Update, context: CallbackContext) -> None:
 def stop(update: Update, context: CallbackContext) -> None:
     global is_up
 
-    print(f"[{dt.now()}] received stop command")
     ret = system(
         f"sshpass -p '{access_cfg['password']}' ssh {access_cfg['username']}@{access_cfg['idrac_address']} racadm serveraction powerdown"
     )
