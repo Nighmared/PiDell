@@ -40,8 +40,8 @@ The bot only provides a few commands as of now, the naming of which should expla
 |            |              | /addseries |
 
 
-
-
+### Notice
+Basically all torrent related functionality becomes obsolete once one starts using Radarr/Sonarr and a reverse proxy... D;
 
 
 
