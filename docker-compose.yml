@@ -6,7 +6,6 @@ services:
       - ${DNS_FALLBACK:-1.0.0.1}
     container_name: pidell
     image: nighmared/pidell:latest
-    build: .
     restart: always
     env_file:
       - settings.env
