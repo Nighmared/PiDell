@@ -114,7 +114,7 @@ def command(role: Permissions = Permissions.DEFAULT):
 
 
 def get_to_know_host(ip):
-    logger.warn("Failed to start/stop, trying to add to known_hosts file")
+    logger.warning("Failed to start/stop, trying to add to known_hosts file")
     ret = system(f"ssh-keyscan -t ecdsa {ip} >> /root/.ssh/known_hosts")
     return ret
 
