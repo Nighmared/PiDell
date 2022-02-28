@@ -130,7 +130,9 @@ def start(update: Update, context: CallbackContext) -> None:
     if ret == 1536:
         res = get_to_know_host(access_cfg["idrac_address"])
         if res == 0:
-            ret = f"sshpass -p '{access_cfg['password']}' ssh {access_cfg['username']}@{access_cfg['idrac_address']} racadm serveraction powerup"
+            ret = system(
+                f"sshpass -p '{access_cfg['password']}' ssh {access_cfg['username']}@{access_cfg['idrac_address']} racadm serveraction powerup"
+            )
             if ret == 0:
                 update.message.reply_text(
                     "✅ issued powerup command\nℹ️Failed at first but successfully added to known_hosts file "
@@ -162,7 +164,9 @@ def stop(update: Update, context: CallbackContext) -> None:
     if ret == 1536:
         res = get_to_know_host(access_cfg["idrac_address"])
         if res == 0:
-            ret = f"sshpass -p '{access_cfg['password']}' ssh {access_cfg['username']}@{access_cfg['idrac_address']} racadm serveraction powerdown"
+            ret = system(
+                f"sshpass -p '{access_cfg['password']}' ssh {access_cfg['username']}@{access_cfg['idrac_address']} racadm serveraction powerdown"
+            )
             if ret == 0:
                 update.message.reply_text(
                     "✅ issued powerdown command\nℹ️Failed at first but successfully added to known_hosts file "
