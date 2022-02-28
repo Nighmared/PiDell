@@ -149,7 +149,7 @@ def power_command_wrapper(cmd: Powercommands):
         if ret2 == 0:
             ret3 = issue_power_command(cmd)
             if ret3 == 0:
-                reply += f"✅ issued {cmdname} command\nℹ️Failed at first but successfully added to known_hosts file and retried"
+                reply = f"✅ issued {cmdname} command\nℹ️Failed at first but successfully added to known_hosts file and retried"
             else:
                 reply = f"❌ failed to {action_name}, got error code {ret3}"
         else:
