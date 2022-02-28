@@ -83,6 +83,18 @@ class Permissions(Enum):
     DEFAULT = 0
 
 
+class Powercommands(Enum):
+    POWERUP = "powerup"
+    POWERDOWN = "powerdown"
+
+
+def get_action_name(cmd: Powercommands):
+    action_names = {
+        Powercommands.POWERDOWN: "stop",
+        Powercommands.POWERUP: "start",
+    }
+
+
 def hasPermission(uid: int, lvl: Permissions) -> bool:
     if lvl == Permissions.OWNER:
         return uid == owner_id
@@ -119,72 +131,115 @@ def get_to_know_host(ip):
     return ret
 
 
-@command(Permissions.ADMIN)
-def start(update: Update, context: CallbackContext) -> None:
+def issue_power_command(cmd: Powercommands):
+    return system(
+        f"sshpass -p '{access_cfg['password']}' ssh {access_cfg['username']}@{access_cfg['idrac_address']} racadm serveraction {cmd.value}"
+    )
+
+
+def power_command_wrapper(cmd: Powercommands):
     global is_up
     global up_since
-
-    ret = system(
-        f"sshpass -p '{access_cfg['password']}' ssh {access_cfg['username']}@{access_cfg['idrac_address']} racadm serveraction powerup"
-    )
-    if ret == 1536:
-        res = get_to_know_host(access_cfg["idrac_address"])
-        if res == 0:
-            ret = system(
-                f"sshpass -p '{access_cfg['password']}' ssh {access_cfg['username']}@{access_cfg['idrac_address']} racadm serveraction powerup"
-            )
-            if ret == 0:
-                update.message.reply_text(
-                    "✅ issued powerup command\nℹ️Failed at first but successfully added to known_hosts file "
-                )
+    cmdname = cmd.value
+    action_name = get_action_name(cmd)
+    ret1 = issue_power_command(cmd)
+    # error code for sshpass receiving the warning about unknown ssh host
+    if ret1 == 1536:
+        ret2 = get_to_know_host(access_cfg["idrac_address"])
+        if ret2 == 0:
+            ret3 = issue_power_command(cmd)
+            if ret3 == 0:
+                reply += f"✅ issued {cmdname} command\nℹ️Failed at first but successfully added to known_hosts file and retried"
             else:
-                update.message.reply_text(
-                    "❌ failed to poweron, got error code " + str(ret)
-                )
+                reply = f"❌ failed to {action_name}, got error code {ret3}"
         else:
-            update.message.reply_text(
-                "❌ failed to poweron,failed to add key to known hosts,\n got error: "
-                + str(res)
-            )
-    if ret != 0:
-        update.message.reply_text("❌ failed to start, got error code " + str(ret))
+            reply = f"❌ failed to {action_name},failed to add key to known hosts,\n got error: {ret2}"
+    elif ret1 != 0:
+        reply = f"❌ failed to {action_name}, got error code {ret1}"
     else:
-        is_up = True
-        up_since = dt.now()
-        update.message.reply_text("✅ issued poweron command")
+        reply = f"✅ issued {cmdname} command"
+        if cmd == Powercommands.POWERUP:
+            is_up = True
+            if not is_up:
+                up_since = dt.now()
+        elif cmd == Powercommands.POWERDOWN:
+            is_up = False
+    return reply
+
+
+@command(Permissions.ADMIN)
+def start(update: Update, context: CallbackContext) -> None:
+    reply = power_command_wrapper(Powercommands.POWERUP)
+    update.message.reply_text(reply)
 
 
 @command(Permissions.ADMIN)
 def stop(update: Update, context: CallbackContext) -> None:
-    global is_up
+    reply = power_command_wrapper(Powercommands.POWERDOWN)
+    update.message.reply_text(reply)
 
-    ret = system(
-        f"sshpass -p '{access_cfg['password']}' ssh {access_cfg['username']}@{access_cfg['idrac_address']} racadm serveraction powerdown"
-    )
-    if ret == 1536:
-        res = get_to_know_host(access_cfg["idrac_address"])
-        if res == 0:
-            ret = system(
-                f"sshpass -p '{access_cfg['password']}' ssh {access_cfg['username']}@{access_cfg['idrac_address']} racadm serveraction powerdown"
-            )
-            if ret == 0:
-                update.message.reply_text(
-                    "✅ issued powerdown command\nℹ️Failed at first but successfully added to known_hosts file "
-                )
-            else:
-                update.message.reply_text(
-                    "❌ failed to shutdown, got error code " + str(ret)
-                )
-        else:
-            update.message.reply_text(
-                "❌ failed to shutdown,failed to add key to known hosts,\n got error: "
-                + str(res)
-            )
-    elif ret != 0:
-        update.message.reply_text("❌ failed to shutdown, got error code " + str(ret))
-    else:
-        is_up = False
-        update.message.reply_text("✅ issued powerdown command")
+
+# @command(Permissions.ADMIN)
+# def start2(update: Update, context: CallbackContext) -> None:
+#     global is_up
+#     global up_since
+#     ret1 = issue_power_command(Powercommands.POWERUP)
+#     # error code for sshpass receiving the warning about unknown ssh host
+#     if ret1 == 1536:
+#         ret2 = get_to_know_host(access_cfg["idrac_address"])
+#         if ret2 == 0:
+#             ret3 = issue_power_command(Powercommands.POWERUP)
+#             if ret3 == 0:
+#                 reply += "✅ issued poweron command\nℹ️Failed at first but successfully added to known_hosts file and retried"
+#             else:
+#                 update.message.reply_text(
+#                     "❌ failed to poweron, got error code " + str(ret3)
+#                 )
+#         else:
+#             update.message.reply_text(
+#                 "❌ failed to poweron,failed to add key to known hosts,\n got error: "
+#                 + str(ret2)
+#             )
+#     if ret1 != 0:
+#         update.message.reply_text("❌ failed to start, got error code " + str(ret1))
+#     else:
+#         if not is_up:
+#             is_up = True
+#             up_since = dt.now()
+#         update.message.reply_text("✅ issued poweron command")
+
+
+# @command(Permissions.ADMIN)
+# def stop(update: Update, context: CallbackContext) -> None:
+#     global is_up
+
+#     ret = system(
+#         f"sshpass -p '{access_cfg['password']}' ssh {access_cfg['username']}@{access_cfg['idrac_address']} racadm serveraction powerdown"
+#     )
+#     if ret == 1536:
+#         res = get_to_know_host(access_cfg["idrac_address"])
+#         if res == 0:
+#             ret = system(
+#                 f"sshpass -p '{access_cfg['password']}' ssh {access_cfg['username']}@{access_cfg['idrac_address']} racadm serveraction powerdown"
+#             )
+#             if ret == 0:
+#                 update.message.reply_text(
+#                     "✅ issued powerdown command\nℹ️Failed at first but successfully added to known_hosts file "
+#                 )
+#             else:
+#                 update.message.reply_text(
+#                     "❌ failed to shutdown, got error code " + str(ret)
+#                 )
+#         else:
+#             update.message.reply_text(
+#                 "❌ failed to shutdown,failed to add key to known hosts,\n got error: "
+#                 + str(res)
+#             )
+#     elif ret != 0:
+#         update.message.reply_text("❌ failed to shutdown, got error code " + str(ret))
+#     else:
+#         is_up = False
+#         update.message.reply_text("✅ issued powerdown command")
 
 
 @command(Permissions.OWNER)
