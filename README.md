@@ -1,9 +1,8 @@
 
 # Dell Poweredge Telegram Controller Bot [1]
 
-[![Testing](https://github.com/Nighmared/PiDell/actions/workflows/staging.yml/badge.svg?branch=staging)](https://github.com/Nighmared/PiDell/actions/workflows/staging.yml)
-
-[![Latest](https://github.com/Nighmared/PiDell/actions/workflows/main.yml/badge.svg)](https://github.com/Nighmared/PiDell/actions/workflows/main.yml)
+[![main](https://github.com/Nighmared/PiDell/actions/workflows/main.yml/badge.svg)](https://github.com/Nighmared/PiDell/actions/workflows/main.yml)
+[![staging](https://github.com/Nighmared/PiDell/actions/workflows/staging.yml/badge.svg)](https://github.com/Nighmared/PiDell/actions/workflows/staging.yml)
 
 This is a python program to issue basic power commands to a Dell Poweredge Server via a Telegram bot. I came up with it because I host my Plex server on an ancient Dell PowerEdge and don't need it to be online all the time but would still like to boot it remotely. First i was using the Internet router's built-in VPN functionality, but then the router started to randomly decide to turn the VPN off. So here we are. I now have a Raspi sitting on top of my server and running that Telegram bot to control the aforementioned server. Works perfectly so far.
 
