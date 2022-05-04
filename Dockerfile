@@ -2,7 +2,7 @@ FROM python:3.10-slim-buster
 WORKDIR /app/code
 RUN apt-get update
 RUN apt-get install iputils-ping sshpass lsb-release chromium-driver -y
-RUN apt-get install gcc libffi-dev -y
+RUN apt-get install gcc libffi-dev rustc -y
 COPY requirements.txt requirements.txt
 COPY *.py .
 RUN pip install -r requirements.txt --extra-index-url https://piwheels.org/simple
