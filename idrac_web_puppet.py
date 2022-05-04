@@ -3,7 +3,6 @@ Module for every idrac feature that is only available in
 the web interface and can't be used via racadm
 """
 from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -19,14 +18,13 @@ def graceful_shutdown(access_cfg):
     shut down gracefully. Unfortunately this is the only way for
     *graceful* shutdown with iDRAC6"""
     # setup selenium driver
-    service = Service(executable_path="chromium.chromedriver")
-    service.start()
+
     options = Options()
     options.add_argument("--headless")
     options.add_argument("--no-sandbox")
     options.add_argument("ignore-certificate-errors")  # because sketchy
 
-    driver = webdriver.Chrome(options=options, service=service)
+    driver = webdriver.Chrome(options=options)
 
     # go o the idrac web interface login page
     driver.get(f"http://{access_cfg['idrac_address']}")
