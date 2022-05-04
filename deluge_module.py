@@ -97,7 +97,6 @@ def seconds_to_nice_string(s: int) -> str:
     s %= 3600
     m = s // 60
     s %= 60
-    s = s
     timestring = ""
     if h > 0:
         timestring += f"{h}h "

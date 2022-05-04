@@ -15,6 +15,7 @@ import dbhandler
 import dbsetup
 import deluge_module as dm
 import log
+import idrac_web_puppet
 
 __author__ = "nighmared"
 __version__ = "1.1"
@@ -22,7 +23,7 @@ __version__ = "1.1"
 log.get_ready()
 logger = logging.getLogger(log.LOGGERNAME)
 
-dir = path.dirname(__file__)
+dirname = path.dirname(__file__)
 
 access_cfg = {
     "username": env.get("SERVER_USERNAME"),
@@ -46,16 +47,17 @@ deluge_cfg = {
     "stop_ratio": env.get("DELUGE_STOP_RATIO"),
 }
 
+PINGRESPONSEEMOTE = "ℹ️"
 
-owner_id = telegram_cfg["owner"]
+OWNER_ID = telegram_cfg["owner"]
 admin_ids = [
-    owner_id,
+    OWNER_ID,
 ]
 
 created_new = dbsetup.setup(telegram_cfg["dbpath"])  # ensures table exists
 db = dbhandler.Dbhandler(telegram_cfg["dbpath"])
 if created_new:
-    db.add_admin(owner_id)
+    db.add_admin(OWNER_ID)
 
 for admin in db.get_admins():
     if admin not in admin_ids:
@@ -86,28 +88,31 @@ class Permissions(Enum):
 class Powercommands(Enum):
     POWERUP = "powerup"
     POWERDOWN = "powerdown"
+    GRACEDOWN = "graceful shutdown"
 
 
 def get_action_name(cmd: Powercommands):
     action_names = {
         Powercommands.POWERDOWN: "stop",
         Powercommands.POWERUP: "start",
+        Powercommands.GRACEDOWN: "shutdown",
     }
+    return action_names[cmd]
 
 
 def hasPermission(uid: int, lvl: Permissions) -> bool:
     if lvl == Permissions.OWNER:
-        return uid == owner_id
+        return uid == OWNER_ID
     if lvl == Permissions.ADMIN:
-        return uid in admin_ids or uid == owner_id
+        return uid in admin_ids or uid == OWNER_ID
     return True
 
 
 def reload_admins() -> None:
     global admin_ids
     admin_ids = list(db.get_admins())
-    if owner_id not in admin_ids:
-        admin_ids.append(owner_id)
+    if OWNER_ID not in admin_ids:
+        admin_ids.append(OWNER_ID)
 
 
 def command(role: Permissions = Permissions.DEFAULT):
@@ -132,9 +137,16 @@ def get_to_know_host(ip):
 
 
 def issue_power_command(cmd: Powercommands):
-    return system(
-        f"sshpass -p '{access_cfg['password']}' ssh {access_cfg['username']}@{access_cfg['idrac_address']} racadm serveraction {cmd.value}"
-    )
+    if cmd == Powercommands.GRACEDOWN:
+        try:
+            idrac_web_puppet.graceful_shutdown(access_cfg=access_cfg)
+            return 0
+        finally:
+            return 1
+    else:
+        return system(
+            f"sshpass -p '{access_cfg['password']}' ssh {access_cfg['username']}@{access_cfg['idrac_address']} racadm serveraction {cmd.value}"
+        )
 
 
 def power_command_wrapper(cmd: Powercommands):
@@ -149,11 +161,13 @@ def power_command_wrapper(cmd: Powercommands):
         if ret2 == 0:
             ret3 = issue_power_command(cmd)
             if ret3 == 0:
-                reply = f"✅ issued {cmdname} command\nℹ️Failed at first but successfully added to known_hosts file and retried"
+                reply = f"✅ issued {cmdname} command\n\
+                    ℹ️Failed at first but successfully added to known_hosts file and retried"
             else:
                 reply = f"❌ failed to {action_name}, got error code {ret3}"
         else:
-            reply = f"❌ failed to {action_name},failed to add key to known hosts,\n got error: {ret2}"
+            reply = f"❌ failed to {action_name},\
+                failed to add key to known hosts,\n got error: {ret2}"
     elif ret1 != 0:
         reply = f"❌ failed to {action_name}, got error code {ret1}"
     else:
@@ -162,7 +176,7 @@ def power_command_wrapper(cmd: Powercommands):
             is_up = True
             if not is_up:
                 up_since = dt.now()
-        elif cmd == Powercommands.POWERDOWN:
+        elif cmd == Powercommands.POWERDOWN or cmd == Powercommands.GRACEDOWN:
             is_up = False
     return reply
 
@@ -175,71 +189,21 @@ def start(update: Update, context: CallbackContext) -> None:
 
 @command(Permissions.ADMIN)
 def stop(update: Update, context: CallbackContext) -> None:
+    update.message.reply_text(
+        "ℹ️stop command has changed, you are probably looking for /shutdown"
+    )
+
+
+@command(Permissions.OWNER)
+def forcestop(update: Update, context: CallbackContext) -> None:
     reply = power_command_wrapper(Powercommands.POWERDOWN)
     update.message.reply_text(reply)
 
 
-# @command(Permissions.ADMIN)
-# def start2(update: Update, context: CallbackContext) -> None:
-#     global is_up
-#     global up_since
-#     ret1 = issue_power_command(Powercommands.POWERUP)
-#     # error code for sshpass receiving the warning about unknown ssh host
-#     if ret1 == 1536:
-#         ret2 = get_to_know_host(access_cfg["idrac_address"])
-#         if ret2 == 0:
-#             ret3 = issue_power_command(Powercommands.POWERUP)
-#             if ret3 == 0:
-#                 reply += "✅ issued poweron command\nℹ️Failed at first but successfully added to known_hosts file and retried"
-#             else:
-#                 update.message.reply_text(
-#                     "❌ failed to poweron, got error code " + str(ret3)
-#                 )
-#         else:
-#             update.message.reply_text(
-#                 "❌ failed to poweron,failed to add key to known hosts,\n got error: "
-#                 + str(ret2)
-#             )
-#     if ret1 != 0:
-#         update.message.reply_text("❌ failed to start, got error code " + str(ret1))
-#     else:
-#         if not is_up:
-#             is_up = True
-#             up_since = dt.now()
-#         update.message.reply_text("✅ issued poweron command")
-
-
-# @command(Permissions.ADMIN)
-# def stop(update: Update, context: CallbackContext) -> None:
-#     global is_up
-
-#     ret = system(
-#         f"sshpass -p '{access_cfg['password']}' ssh {access_cfg['username']}@{access_cfg['idrac_address']} racadm serveraction powerdown"
-#     )
-#     if ret == 1536:
-#         res = get_to_know_host(access_cfg["idrac_address"])
-#         if res == 0:
-#             ret = system(
-#                 f"sshpass -p '{access_cfg['password']}' ssh {access_cfg['username']}@{access_cfg['idrac_address']} racadm serveraction powerdown"
-#             )
-#             if ret == 0:
-#                 update.message.reply_text(
-#                     "✅ issued powerdown command\nℹ️Failed at first but successfully added to known_hosts file "
-#                 )
-#             else:
-#                 update.message.reply_text(
-#                     "❌ failed to shutdown, got error code " + str(ret)
-#                 )
-#         else:
-#             update.message.reply_text(
-#                 "❌ failed to shutdown,failed to add key to known hosts,\n got error: "
-#                 + str(res)
-#             )
-#     elif ret != 0:
-#         update.message.reply_text("❌ failed to shutdown, got error code " + str(ret))
-#     else:
-#         is_up = False
-#         update.message.reply_text("✅ issued powerdown command")
+@command(Permissions.ADMIN)
+def shutdown(update: Update, context: CallbackContext) -> None:
+    reply = power_command_wrapper(Powercommands.GRACEDOWN)
+    update.message.reply_text(reply)
 
 
 @command(Permissions.OWNER)
@@ -247,7 +211,7 @@ def addadmin(update: Update, context: CallbackContext) -> None:
     reload_admins()
     try:
         to_add_id = int(update.message.text[9:].strip().split(" ")[0])
-    except:
+    except Exception:
         to_add_id = -1
     if to_add_id in admin_ids or to_add_id < 0:
         update.message.reply_text(
@@ -349,8 +313,8 @@ def new_torrent(update: Update, context: CallbackContext, folder: str) -> None:
     update.message.reply_text(res)
 
 
-def add_torrent(link: str, path: str) -> None:
-    completepath = deluge_cfg["base_dir"] + path
+def add_torrent(link: str, torrent_path: str) -> None:
+    completepath = deluge_cfg["base_dir"] + torrent_path
     res, err = torrent.add_torrent(link, completepath)
     if err:
         return "failed to add torrent: " + str(err)
@@ -377,7 +341,6 @@ def pauseall(update: Update, context: CallbackContext):
 
 @command(Permissions.ADMIN)
 def ping(update: Update, context: CallbackContext) -> None:
-    PINGRESPONSEEMOTE = "ℹ️"
     global is_up, up_since
     was = is_up
     is_up = system(f"ping -c 1 {access_cfg['server_address']} > /dev/null") == 0
