@@ -1,5 +1,7 @@
 FROM python:3.7-slim
 WORKDIR /app/code
+RUN ln -s /usr/bin/dpkg-split /usr/sbin/dpkg-split
+RUN ln -s /usr/bin/dpkg-deb /usr/sbin/dpkg-deb
 RUN apt-get update
 RUN apt-get install iputils-ping sshpass lsb-release chromium-driver -y
 COPY requirements.txt requirements.txt
