@@ -151,7 +151,6 @@ def issue_power_command(cmd: Powercommands):
             return 0
         except Exception as e:
             logger.critical("exception at shutdown", exc_info=True)
-        finally:
             return 1
     else:
         return system(
@@ -171,8 +170,8 @@ def power_command_wrapper(cmd: Powercommands):
         if ret2 == 0:
             ret3 = issue_power_command(cmd)
             if ret3 == 0:
-                reply = f"✅ issued {cmdname} command\n\
-                    ℹ️Failed at first but successfully added to known_hosts file and retried"
+                reply = f"✅ issued {cmdname} command\n"
+                "ℹ️ Failed at first but successfully added to known_hosts file and retried"
             else:
                 reply = f"❌ failed to {action_name}, got error code {ret3}"
         else:
