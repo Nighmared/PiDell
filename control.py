@@ -141,6 +141,8 @@ def issue_power_command(cmd: Powercommands):
         try:
             idrac_web_puppet.graceful_shutdown(access_cfg=access_cfg)
             return 0
+        except Exception as e:
+            logger.critical("exception at shutdown",exc_info=True)
         finally:
             return 1
     else:

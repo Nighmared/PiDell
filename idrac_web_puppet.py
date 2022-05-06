@@ -21,6 +21,7 @@ def graceful_shutdown(access_cfg):
 
     options = Options()
     options.add_argument("--headless")
+    options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--no-sandbox")
     options.add_argument("ignore-certificate-errors")  # because sketchy
 
@@ -44,12 +45,14 @@ def graceful_shutdown(access_cfg):
     submit_button.click()
 
     # because for some reason everything is in weird frames, here some switcharoo
-    navbar_frame = driver.find_element(by=By.XPATH, value="//frame[@src='snb.html']")
+    navbar_frame = WebDriverWait(driver, 20).until(
+        presence_of_element_located((By.XPATH, "//frame[@src='snb.html']"))
+    )
     driver.switch_to.frame(navbar_frame)
 
     # find the "Power" tab on the navbar and click it
-    navbar_power = driver.find_element(
-        by=By.XPATH, value="//tbody/tr/td/a[text()='Power']"
+    navbar_power = WebDriverWait(driver, 10).until(
+        presence_of_element_located((By.XPATH, "//tbody/tr/td/a[text()='Power']"))
     )
     navbar_power.click()
 
@@ -74,10 +77,16 @@ def graceful_shutdown(access_cfg):
     submit_power_action_button.click()
     driver.switch_to.alert.accept()
 
+    # find the frame for logout button
     driver.switch_to.default_content()
+    top_nav_frame = WebDriverWait(driver, 15).until(
+        presence_of_element_located((By.XPATH, "//frame[@src='globalnav.html']"))
+    )
+    driver.switch_to.frame(top_nav_frame)
+    # find and click logout
     logout_button = driver.find_element(
         by=By.XPATH, value="//a[normalize-space(text())='Logout']"
     )
     logout_button.click()  # make it clean for iDRAC UwU
-
+    # and close chrome
     driver.quit()
