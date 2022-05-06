@@ -122,6 +122,8 @@ def deprecated(func: Callable[[Update, CallbackContext], None]):
         )
         func(update, ctxt)
 
+    return wrap
+
 
 def command(role: Permissions = Permissions.DEFAULT):
     def wrap2(func: Callable[[Update, CallbackContext], None]):
