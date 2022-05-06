@@ -115,6 +115,14 @@ def reload_admins() -> None:
         admin_ids.append(OWNER_ID)
 
 
+def deprecated(func: Callable[[Update, CallbackContext], None]):
+    def wrap(update: Update, ctxt: CallbackContext):
+        update.message.reply_text(
+            "This command is deprecated and might be removed in the future"
+        )
+        func(update, ctxt)
+
+
 def command(role: Permissions = Permissions.DEFAULT):
     def wrap2(func: Callable[[Update, CallbackContext], None]):
         def wrap(update: Update, ctxt: CallbackContext) -> None:
@@ -142,7 +150,7 @@ def issue_power_command(cmd: Powercommands):
             idrac_web_puppet.graceful_shutdown(access_cfg=access_cfg)
             return 0
         except Exception as e:
-            logger.critical("exception at shutdown",exc_info=True)
+            logger.critical("exception at shutdown", exc_info=True)
         finally:
             return 1
     else:
@@ -189,6 +197,7 @@ def start(update: Update, context: CallbackContext) -> None:
     update.message.reply_text(reply)
 
 
+@deprecated
 @command(Permissions.ADMIN)
 def stop(update: Update, context: CallbackContext) -> None:
     update.message.reply_text(
@@ -280,6 +289,7 @@ def timedelta_to_nice_time(delta: timedelta) -> str:
     return timestring
 
 
+@deprecated
 @command(Permissions.ADMIN)
 def gettorrents(update: Update, context: CallbackContext) -> None:
     if not is_up:
@@ -292,53 +302,6 @@ def gettorrents(update: Update, context: CallbackContext) -> None:
         return
 
     update.message.reply_text(res)
-
-
-@command(Permissions.OWNER)
-def addmovie(update: Update, context: CallbackContext) -> None:
-    new_torrent(update, context, "Movies")
-
-
-@command(Permissions.OWNER)
-def addmcu(update: Update, context: CallbackContext) -> None:
-    new_torrent(update, context, "MCU")
-
-
-# this is not a command. it also shouldn't be
-def new_torrent(update: Update, context: CallbackContext, folder: str) -> None:
-    if not is_up:
-        update.message.reply_text("Server not up")
-        return
-
-    link = context.args[0]
-    res = add_torrent(link, f"/{folder}")
-    update.message.reply_text(res)
-
-
-def add_torrent(link: str, torrent_path: str) -> None:
-    completepath = deluge_cfg["base_dir"] + torrent_path
-    res, err = torrent.add_torrent(link, completepath)
-    if err:
-        return "failed to add torrent: " + str(err)
-    return res
-
-
-# @command doesnt work
-def pauseall(update: Update, context: CallbackContext):
-    if not hasPermission(update.message.from_user.id, Permissions.OWNER):
-        update.message.reply_text("🔒 Not authorized")
-        return
-
-    if not is_up:
-        update.message.reply_text("Server not up")
-        return
-
-    _, err = torrent.pause_all()
-    if err:
-        print(err)
-        update.message.reply_text("Failed to pause: " + str(err))
-        return
-    update.message.reply_text("Paused all torrents")
 
 
 @command(Permissions.ADMIN)
@@ -386,7 +349,7 @@ def uptime(update: Update, context: CallbackContext) -> None:
 
 
 def errorh(update: Update, context: CallbackContext) -> None:
-    logger.fatal(context.error)
+    logger.critical(context.error, exc_info=1)
     if isinstance(context.error, HTTPError):
         sleep(60)  # give it some time
 
