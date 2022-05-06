@@ -198,8 +198,8 @@ def start(update: Update, context: CallbackContext) -> None:
     update.message.reply_text(reply)
 
 
-@deprecated
 @command(Permissions.ADMIN)
+@deprecated
 def stop(update: Update, context: CallbackContext) -> None:
     update.message.reply_text(
         "ℹ️stop command has changed, you are probably looking for /shutdown"
@@ -290,8 +290,8 @@ def timedelta_to_nice_time(delta: timedelta) -> str:
     return timestring
 
 
-@deprecated
 @command(Permissions.ADMIN)
+@deprecated
 def gettorrents(update: Update, context: CallbackContext) -> None:
     if not is_up:
         update.message.reply_text("Server not up")
