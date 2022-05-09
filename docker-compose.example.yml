@@ -1,16 +1,24 @@
 version: "3.3"
 services:
-  pidell:
+  prod:
     dns:
       - ${DNS_MAIN:-1.1.1.1}
       - ${DNS_FALLBACK:-1.0.0.1}
-    container_name: pidell
     image: nighmared/pidell:latest
     restart: always
     env_file:
       - settings.env
     volumes:
       - pidell_db:/app/data
+  testing:
+    image: nighmared/pidell:testing
+    dns:
+      - ${DNS_MAIN:-1.1.1.1}
+      - ${DNS_FALLBACK:-1.0.0.1}
+    env_file:
+      - testing.settings.env
+    volumes:
+      - pidell_testing_db:/app/data
 
 volumes:
-  pidell_db:
+  - pidell_db:
