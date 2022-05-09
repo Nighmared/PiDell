@@ -120,7 +120,7 @@ def deprecated(func: Callable[[Update, CallbackContext], None]):
         update.message.reply_text(
             "This command is deprecated and might be removed in the future"
         )
-        func(update, ctxt)
+        return func(update, ctxt)
 
     return wrap
 
@@ -198,8 +198,8 @@ def start(update: Update, context: CallbackContext) -> None:
     update.message.reply_text(reply)
 
 
-@command(Permissions.ADMIN)
 @deprecated
+@command(Permissions.ADMIN)
 def stop(update: Update, context: CallbackContext) -> None:
     update.message.reply_text(
         "ℹ️stop command has changed, you are probably looking for /shutdown"
