@@ -13,5 +13,5 @@ RUN apt-get --fix-broken install python3 -y
 RUN apt-get install iputils-ping sshpass lsb-release chromium-driver -y
 COPY requirements.txt requirements.txt
 RUN pip install -r requirements.txt --extra-index-url https://piwheels.org/simple
-COPY *.py .
+COPY *.py ./
 CMD ["python3", "control.py"]
