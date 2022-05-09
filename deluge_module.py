@@ -1,4 +1,10 @@
+import logging
 from deluge_client import DelugeRPCClient
+import log
+
+
+log.get_ready()
+logger = logging.getLogger(log.LOGGERNAME)
 
 
 class DelugeClient:
@@ -35,7 +41,7 @@ class DelugeClient:
             if err:
                 return None, err
         try:
-            torrents = self.client.core.get_torrents_status(
+            torrents: dict = self.client.core.get_torrents_status(
                 {}, ["name", "progress", "eta"]
             )
 
@@ -46,6 +52,7 @@ class DelugeClient:
 
         for t in torrents:
             torrent_objs.append(Torrent(t, torrents[t]))
+        logger.info("[gettorrents] %s %i", str(torrent_objs), len(torrent_objs))
         return "\n".join(map(str, torrent_objs)), None
 
     def add_torrent(self, link: str, location: str):

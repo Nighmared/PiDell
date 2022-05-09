@@ -15,8 +15,8 @@ from urllib3.exceptions import HTTPError
 import dbhandler
 import dbsetup
 import deluge_module as dm
-import log
 import idrac_web_puppet
+import log
 
 __author__ = "nighmared"
 __version__ = "1.1"
@@ -360,7 +360,7 @@ def gettorrents(update: Update, _context: CallbackContext) -> None:
     if err:
         update.message.reply_text("Failed to get torrents: " + str(err))
         return
-
+    logger.info("[gettorrents] sending msg: %s", res)
     update.message.reply_text(res)
 
 
