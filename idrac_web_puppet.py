@@ -5,11 +5,11 @@ the web interface and can't be used via racadm
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support.expected_conditions import (
-    presence_of_element_located,
     element_to_be_clickable,
+    presence_of_element_located,
 )
+from selenium.webdriver.support.ui import WebDriverWait
 
 
 def graceful_shutdown(access_cfg):
